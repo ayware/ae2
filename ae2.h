@@ -13,6 +13,8 @@
 #include <QtSerialPort>
 #include <QQmlContext>
 
+#define KNOTS_TO_KMH    0.5399568034557235
+
 class Ae2 : public QObject
 {
         Q_OBJECT
@@ -20,11 +22,14 @@ class Ae2 : public QObject
     public:
         Ae2();
         QTimer *timer;
-        QSerialPort *serial;
+        QSerialPort *serialTelemetry;
+        QSerialPort *serialGps;
 
         QByteArray sendData;
         QByteArray received_Register;
         QByteArray Register;
+
+        QByteArray received_GpsData;
 
         bool speedCommand=false;
         bool hornCommand=false;
@@ -61,6 +66,10 @@ class Ae2 : public QObject
         float previoustotalW=0;
         float potValue = 0;
 
+        float latitude = 0;
+        float longitude = 0;
+        float gpsSpeed = 0;
+
     private:
         int UartCRC(QByteArray crcArray, int crcLenght);
         void UartWrite(QByteArray uartArray);
@@ -86,7 +95,8 @@ class Ae2 : public QObject
     public slots:
         void TimerTick();
         void haberAl(int s);
-        void dataReceived( void );
+        void telemetryDataReceived( void );
+        void gpsDataReceived( void );
 
 };
 

@@ -2,18 +2,31 @@
 
 Ae2::Ae2()
 {
-    serial = new QSerialPort(this);
-    connect(serial, SIGNAL(readyRead()), this, SLOT(dataReceived()));
+    serialTelemetry = new QSerialPort(this);
+    serialGps = new QSerialPort(this);
 
-    serial->setPortName("/dev/serial0");
-    serial->setBaudRate(QSerialPort::Baud115200);
-    serial->setParity(QSerialPort::NoParity);
-    serial->setStopBits(QSerialPort::OneStop);
-    serial->setFlowControl(QSerialPort::NoFlowControl);
+    connect(serialTelemetry, SIGNAL(readyRead()), this, SLOT(telemetryDataReceived()));
+    connect(serialGps, SIGNAL(readyRead()), this, SLOT(gpsDataReceived()));
+
+    serialTelemetry->setPortName("/dev/serial0");
+    serialTelemetry->setBaudRate(QSerialPort::Baud115200);
+    serialTelemetry->setParity(QSerialPort::NoParity);
+    serialTelemetry->setStopBits(QSerialPort::OneStop);
+    serialTelemetry->setFlowControl(QSerialPort::NoFlowControl);
+
+    serialGps->setPortName("COM1");
+    serialGps->setBaudRate(QSerialPort::Baud9600);
+    serialGps->setParity(QSerialPort::NoParity);
+    serialGps->setStopBits(QSerialPort::OneStop);
+    serialGps->setFlowControl(QSerialPort::NoFlowControl);
 
 
-    if(!serial->isOpen()){
-       serial->open(QSerialPort::ReadWrite);
+    if(!serialTelemetry->isOpen()){
+       serialTelemetry->open(QSerialPort::ReadWrite);
+    }
+
+    if(!serialGps->isOpen()){
+       serialGps->open(QSerialPort::ReadWrite);
     }
 
 
@@ -22,19 +35,24 @@ Ae2::Ae2()
     timer->start(timeToTimer);
 
 
-    qDebug()<<"IsOpenUart      :"<< serial->isOpen()<<endl;
-    qDebug()<<"ReadableUart    :"<<serial->isReadable()<<endl;
-    qDebug()<<"WritableUart    :"<<serial->isWritable()<<endl<<endl;
+    qDebug()<<"serialTelemetry IsOpenUart      :"<<serialTelemetry->isOpen()<<endl;
+    qDebug()<<"serialTelemetry ReadableUart    :"<<serialTelemetry->isReadable()<<endl;
+    qDebug()<<"serialTelemetry WritableUart    :"<<serialTelemetry->isWritable()<<endl<<endl;
+
+    qDebug()<<"serialGps IsOpenUart      :"<<serialGps->isOpen()<<endl;
+    qDebug()<<"serialGps ReadableUart    :"<<serialGps->isReadable()<<endl;
+    qDebug()<<"serialGps WritableUart    :"<<serialGps->isWritable()<<endl<<endl;
 
 }
 
-void Ae2::dataReceived( void ){
+void Ae2::telemetryDataReceived( void ){
 
-    qDebug()<<serial->bytesAvailable();
+    qDebug()<<serialTelemetry->bytesAvailable();
 
-    if(serial->bytesAvailable()>=24){
+    if(serialTelemetry->bytesAvailable()>=24){
 
-        received_Register = serial->read(24);
+        received_Register = serialTelemetry->read(24);
+        serialTelemetry->readAll(); //Bufferda hatadan dolayı fazladan veri geldiyse silelim bosalsin.
 
         if( (UartCRC(received_Register,23) == (unsigned char)received_Register[23]) && (0x55 == received_Register[0]) )
         {
@@ -150,12 +168,48 @@ void Ae2::dataReceived( void ){
         }
 
         received_Register.clear();
-        serial->readAll();
 
     }else{
 
-        qDebug()<<serial->bytesAvailable();
+        qDebug()<<serialTelemetry->bytesAvailable();
     }
+}
+
+void Ae2::gpsDataReceived( void ){
+
+    qDebug()<<serialGps->bytesAvailable();
+
+    if(serialGps->canReadLine()){
+        received_GpsData = serialGps->readLine();
+
+        if( received_GpsData.startsWith("$GPRMC") ){
+
+            qDebug()<<received_GpsData;
+
+            QStringList list = QString(received_GpsData).split(",");
+
+            qDebug()<<list;
+
+            int latDegree = (((QString)list[3]).toDouble())/100;
+            float latMin = (((QString)list[3]).toDouble())-latDegree*100;
+            //qDebug()<<QString::number(latDegree)<<" - "<<QString::number(latMin)<<" - "<<QString::number(latDegree + latMin/60);
+            latitude = latDegree + latMin/60;
+
+            int lonDegree = (((QString)list[5]).toDouble())/100;
+            float lonMin = (((QString)list[5]).toDouble())-lonDegree*100;
+            //qDebug()<<QString::number(lonDegree)<<" - "<<QString::number(lonMin)<<" - "<<QString::number(lonDegree + lonMin/60);
+            longitude = lonDegree + lonMin/60;
+
+            float gpsSpeed = (((QString)list[7]).toDouble())/KNOTS_TO_KMH;
+
+            qDebug()<<QString::number(latitude)<<" - "<<QString::number(longitude)<<" - "<<gpsSpeed;
+
+        }else{
+
+            received_GpsData.clear();
+        }
+    }
+
 }
 
 
@@ -168,7 +222,7 @@ void Ae2::haberAl(int s)
 
 void Ae2::TimerTick()
 {
-    if (serial->isOpen() && serial->isWritable())
+    if (serialTelemetry->isOpen() && serialTelemetry->isWritable())
     {
         sendData[0]=0x5A;
         sendData[1]=0x06;
@@ -178,7 +232,7 @@ void Ae2::TimerTick()
 
     }else{
 
-        serial->open(QSerialPort::ReadWrite);
+        serialTelemetry->open(QSerialPort::ReadWrite);
     }
 }
 
@@ -200,8 +254,8 @@ int Ae2::UartCRC(QByteArray crcArray, int crcLenght)
 
 void Ae2::UartWrite(QByteArray uartArray)
 {
-    serial->write(uartArray);
-    serial->flush();
-    serial->waitForBytesWritten(timeToWaitingRequest);
+    serialTelemetry->write(uartArray);
+    serialTelemetry->flush();
+    serialTelemetry->waitForBytesWritten(timeToWaitingRequest);
 }
 
