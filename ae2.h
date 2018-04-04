@@ -12,6 +12,7 @@
 #include <QtDebug>
 #include <QtSerialPort>
 #include <QQmlContext>
+
 class Ae2 : public QObject
 {
         Q_OBJECT
@@ -19,22 +20,31 @@ class Ae2 : public QObject
     public:
         Ae2();
         QTimer *timer;
-        int i=0;
-        int j=0;
-        int k=0;
-        QSerialPort serial,serialGPS;
-        int UartCRC(QByteArray crcarray, int crcleght);
-        void UartWrite(QByteArray uartarray);
+        QSerialPort *serial;
+
         QByteArray sendData;
         QByteArray received_Register;
         QByteArray Register;
+
         bool speedCommand=false;
         bool hornCommand=false;
         bool modCommand=false;
         bool stopCommand=false;
+        bool isEngineActive = true;
+        bool isBatteryActive = true;
+        bool isWheelActive = true;
+
+        unsigned int breakStats=0;
+
+        int isDeadSwitch = 0;
+        int isBreak = 0;
+        int timeToRefresh = 100; // Ms
+        int timeToWaitingRequest = 50; // Ms
+        int timeToTimer = timeToRefresh - timeToWaitingRequest;
+        int timerToSecond = 0;
+
         float R=0.1; // 10 cm
         float wheelR = 20.0; //"20 cm"
-        unsigned int breakStats=0;
         float encoderSpd=0;
         float encoderSpdCount=0;
         float mosfetHt=0;
@@ -50,11 +60,10 @@ class Ae2 : public QObject
         float totalWatt=0;
         float previoustotalW=0;
         float potValue = 0;
-        int isDeadSwitch = 0;
-        int isBreak = 0;
-        bool isEngineActive = true;
-        bool isBatteryActive = true;
-        bool isWheelActive = true;
+
+    private:
+        int UartCRC(QByteArray crcArray, int crcLenght);
+        void UartWrite(QByteArray uartArray);
 
 
       signals:
@@ -77,6 +86,7 @@ class Ae2 : public QObject
     public slots:
         void TimerTick();
         void haberAl(int s);
+        void dataReceived( void );
 
 };
 

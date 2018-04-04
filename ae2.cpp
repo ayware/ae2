@@ -1,69 +1,43 @@
 #include "ae2.h"
 
-int timeToRefresh = 100; // Ms
-int timeToWaitingRequest = 50; // Ms
-int timeToTimer = timeToRefresh - timeToWaitingRequest;
-
 Ae2::Ae2()
 {
+    serial = new QSerialPort(this);
+    connect(serial, SIGNAL(readyRead()), this, SLOT(dataReceived()));
+
+    serial->setPortName("COM1");
+    serial->setBaudRate(QSerialPort::Baud115200);
+    serial->setParity(QSerialPort::NoParity);
+    serial->setStopBits(QSerialPort::OneStop);
+    serial->setFlowControl(QSerialPort::NoFlowControl);
+
+
+    if(!serial->isOpen()){
+       serial->open(QSerialPort::ReadWrite);
+    }
+
+
     timer = new QTimer(this);
     connect(timer,SIGNAL(timeout()),this,SLOT(TimerTick()));
     timer->start(timeToTimer);
 
-    serial.close();
-    serialGPS.close();
 
-    serialGPS.setPortName("/dev/ttyUSB0");
-    serialGPS.setBaudRate(QSerialPort::Baud9600);
-    serialGPS.open(QSerialPort::ReadOnly);
-
-    serial.setPortName("/dev/ttyS0");
-    serial.setBaudRate(QSerialPort::Baud115200);
-    serial.setParity(QSerialPort::NoParity);
-    serial.setStopBits(QSerialPort::OneStop);
-    serial.setFlowControl(QSerialPort::NoFlowControl);
-    serial.open(QSerialPort::ReadWrite);
-
-
-    qDebug()<<"IsOpenUart      :"<< serial.isOpen()<<endl;
-    qDebug()<<"ReadableUart    :"<<serial.isReadable()<<endl;
-    qDebug()<<"WritableUart    :"<<serial.isWritable()<<endl<<endl;
-    qDebug()<<"IsOpenGPS       :"<<serialGPS.isOpen()<<endl;
-    qDebug()<<"ReadableUart    :"<<serialGPS.isReadable()<<endl;
-
-    serial.close();
-    serialGPS.close();
+    qDebug()<<"IsOpenUart      :"<< serial->isOpen()<<endl;
+    qDebug()<<"ReadableUart    :"<<serial->isReadable()<<endl;
+    qDebug()<<"WritableUart    :"<<serial->isWritable()<<endl<<endl;
 
 }
-void Ae2::haberAl(int s)
-{
 
-    qDebug() << "Haber :" << s;
-    //emit haberYollaint(30,50);
-}
+void Ae2::dataReceived( void ){
 
-int timerToSecond = 0;
+    qDebug()<<serial->bytesAvailable();
 
-void Ae2::TimerTick()
-{
-    //emit haberYollaint(30,40,100.1,4,32.1,23.2,9.2,55.5,1);
+    if(serial->bytesAvailable()>=24){
 
+        received_Register = serial->read(24);
 
-    serial.open(QSerialPort::ReadWrite);
-
-
-    if (serial.isOpen() && serial.isWritable())
-    {
-        sendData[0]=0x5A;
-        sendData[1]=0x06;
-        sendData[2]=0x06;
-        sendData[3]=UartCRC(sendData,3);
-        UartWrite(sendData);
-        received_Register = serial.read(24);
-
-        if(UartCRC(received_Register,23)==received_Register[23] && 0x55==received_Register[0])
+        if( (UartCRC(received_Register,23) == (unsigned char)received_Register[23]) && (0x55 == received_Register[0]) )
         {
-
             timerToSecond++;
 
             qDebug()<<"Uart Data Received"<<endl;
@@ -113,19 +87,18 @@ void Ae2::TimerTick()
 
 
             //qDebug()<<"isDeadSwitch    :"<<isDeadSwitch<<endl;
-
             //qDebug()<<"Distance            :"<<distancee<<endl;
 
             if(timerToSecond == 1000/(timeToRefresh)){
 
-            timerToSecond = 0;
+                timerToSecond = 0;
 
-            wheelSpd = wheelSpdCount - wheelSpdCountPrevios;
-            Spd = ((wheelSpd*2*3.14*(wheelR/2)/100000))/(3600);
-            distancee=wheelSpdCount*2*3.14*(wheelR/2)/1000;
-            qDebug()<<"Speed            :"<<Spd<<endl;
+                wheelSpd = wheelSpdCount - wheelSpdCountPrevios;
+                Spd = ((wheelSpd*2*3.14*(wheelR/2)/100000))/(3600);
+                distancee=wheelSpdCount*2*3.14*(wheelR/2)/1000;
+                qDebug()<<"Speed            :"<<Spd<<endl;
 
-            wheelSpdCountPrevios = wheelSpdCount;
+                wheelSpdCountPrevios = wheelSpdCount;
 
             }
 
@@ -134,10 +107,6 @@ void Ae2::TimerTick()
             totalWatt=(((batteryCrnt*batteryVltg))/(3600*(1000/timeToRefresh)))+previoustotalW;
             //qDebug()<<"Total Watt          :"<<totalWatt<<endl;
             previoustotalW=totalWatt;
-
-    //        qDebug() << "DeadSwitch : "<<isDeadSwitch<<endl;
-
-
 
 
             emit haberYollaint(encoderSpd,
@@ -160,7 +129,6 @@ void Ae2::TimerTick()
 
          }else{
 
-
             timerToSecond = 0;
 
             emit haberYollaint(encoderSpd,
@@ -182,105 +150,58 @@ void Ae2::TimerTick()
         }
 
         received_Register.clear();
+        serial->readAll();
 
-        /*if(speedCommand==true)
-        {
-            sendData[0]=0x5A;
-            sendData[1]=0x01;
-            sendData[2]=0x00; // hız bilgisi
-            sendData[3]=UartCRC(sendData,3);
-            UartWrite(sendData);
-            received_Register = serial.read(1);
-            if(0x55==received_Register[0])
-                speedCommand=false;
+    }else{
 
-        }
-        if(modCommand==true)
-        {
-            sendData[0]=0x5A;
-            sendData[1]=0x02;
-            sendData[2]=0x00; // hız bilgisi
-            sendData[3]=UartCRC(sendData,3);
-            UartWrite(sendData);
-            received_Register = serial.read(1);
-            if(0x55==received_Register[0])
-                speedCommand=false;
-
-        }
-        if(hornCommand==true)
-        {
-            sendData[0]=0x5A;
-            sendData[1]=0x04;
-            sendData[2]=0x00; // hız bilgisi
-            sendData[3]=UartCRC(sendData,3);
-            UartWrite(sendData);
-            received_Register = serial.read(1);
-            if(0x55==received_Register[0])
-                speedCommand=false;
-
-        }
-        if(stopCommand==true)
-        {
-            sendData[0]=0x5A;
-            sendData[1]=0x00;
-            sendData[2]=0x00; // hız bilgisi
-            sendData[3]=UartCRC(sendData,3);
-            UartWrite(sendData);
-            received_Register = serial.read(1);
-            if(0x55==received_Register[0])
-                speedCommand=false;
-
-        }
-
-        */
-
-
-
-       serial.close();
+        qDebug()<<serial->bytesAvailable();
     }
-
-    serialGPS.open(QSerialPort::ReadOnly);
-
-    if(serialGPS.isOpen() && serialGPS.isReadable()){
-
-        QByteArray gpsData = serialGPS.readAll();
-        qDebug()<<"DataSize:"<<gpsData.length()<<endl;
-
-        if(gpsData.length() != 0)
-        {
-
-            qDebug()<<"Data0:"<<gpsData.at(0)<<endl;
-
-        }
+}
 
 
+void Ae2::haberAl(int s)
+{
 
-        serialGPS.close();
+    qDebug() << "Haber :" << s;
+    //emit haberYollaint(30,50);
+}
+
+void Ae2::TimerTick()
+{
+    if (serial->isOpen() && serial->isWritable())
+    {
+        sendData[0]=0x5A;
+        sendData[1]=0x06;
+        sendData[2]=0x06;
+        sendData[3]=UartCRC(sendData,3);
+        UartWrite(sendData);
+
+    }else{
+
+        serial->open(QSerialPort::ReadWrite);
     }
-
-
 }
 
 
 
-int Ae2::UartCRC(QByteArray crcarray, int crcleght)
+int Ae2::UartCRC(QByteArray crcArray, int crcLenght)
 {
     int calc=0,j=0;
 
-        for(j=0;j<crcleght;j++)
-        {
-            calc=calc+crcarray[j];
-        }
+    for(j=0;j<crcLenght;j++)
+    {
+        calc=calc+crcArray[j];
+    }
 
-        calc=calc%256;
+    calc=calc%256;
 
     return calc;
 }
 
-void Ae2::UartWrite(QByteArray uartarray)
+void Ae2::UartWrite(QByteArray uartArray)
 {
-    serial.write(uartarray);
-    serial.flush();
-    serial.waitForBytesWritten(timeToWaitingRequest);
+    serial->write(uartArray);
+    serial->flush();
+    serial->waitForBytesWritten(timeToWaitingRequest);
 }
 
