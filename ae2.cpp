@@ -14,7 +14,7 @@ Ae2::Ae2()
     serialTelemetry->setStopBits(QSerialPort::OneStop);
     serialTelemetry->setFlowControl(QSerialPort::NoFlowControl);
 
-    serialGps->setPortName("COM1");
+    serialGps->setPortName("/dev/ttyUSB1");
     serialGps->setBaudRate(QSerialPort::Baud9600);
     serialGps->setParity(QSerialPort::NoParity);
     serialGps->setStopBits(QSerialPort::OneStop);
