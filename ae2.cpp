@@ -1,4 +1,4 @@
-#include "ae2.h"
+﻿#include "ae2.h"
 
 Ae2::Ae2()
 {
@@ -8,7 +8,7 @@ Ae2::Ae2()
     connect(serialTelemetry, SIGNAL(readyRead()), this, SLOT(telemetryDataReceived()));
     connect(serialGps, SIGNAL(readyRead()), this, SLOT(gpsDataReceived()));
 
-    serialTelemetry->setPortName("COM1");
+    serialTelemetry->setPortName("/dev/ttyS0");
     serialTelemetry->setBaudRate(QSerialPort::Baud115200);
     serialTelemetry->setParity(QSerialPort::NoParity);
     serialTelemetry->setStopBits(QSerialPort::OneStop);
@@ -31,7 +31,7 @@ Ae2::Ae2()
 
 
     timer = new QTimer(this);
-    connect(timer,SIGNAL(timeout()),this,SLOT(TimerTick()));
+    connect(timer,SIGNAL(timeout()),this,SLOT(timerTick()));
     timer->start(timeToTimer);
 
 
@@ -47,139 +47,89 @@ Ae2::Ae2()
 
 void Ae2::telemetryDataReceived( void ){
 
-    qDebug()<<serialTelemetry->bytesAvailable();
+    //qDebug()<<serialTelemetry->bytesAvailable();
 
-    if(serialTelemetry->bytesAvailable()>=24){
+    if(serialTelemetry->bytesAvailable()>=20){
 
-        received_Register = serialTelemetry->read(24);
+        received_Register = serialTelemetry->read(20);
         serialTelemetry->readAll(); //Bufferda hatadan dolayı fazladan veri geldiyse silelim bosalsin.
 
-        if( (UartCRC(received_Register,23) == (unsigned char)received_Register[23]) && (0x55 == received_Register[0]) )
+        if( (UartCRC(received_Register,19) == (unsigned char)received_Register[19]) && (0x55 == received_Register[0]) )
         {
-            timerToSecond++;
 
-            qDebug()<<"Uart Data Received"<<endl;
+           //qDebug()<<"Uart Data Received"<<endl;
 
             Register=received_Register;
 
-            breakStats=Register[1];
-           // qDebug()<<"Break Status       :"<<breakStats<<endl;
+            speedMotor=Register[1]+((Register[2]<<8)&0xFF00);
+            // Motora takılı encoder bilgisi
 
-            encoderSpdCount=Register[2]+((Register[3]<<8)&0xFF00);
-            //qDebug()<<"Encoder Count      :"<<encoderSpdCount<<endl;
+            speedEncoder = Register[3];
+            // Tekerdeki encoder bilgisi
 
-            mosfetHt=Register[4]+((Register[5]<<8)&0xFF00);
+            motorControllerHeat=Register[4]+((Register[5]<<8)&0xFF00);
+            motorControllerHeat=(147.5-(0.06*motorControllerHeat));
+            // Motor haberleşme kartı controller heat
 
-            mosfetHt=(147.5-(0.06*mosfetHt));
-            //qDebug()<<"Mosfet Heat        :"<<mosfetHt<<endl;
+            mosfetHeat=Register[6]+((Register[7]<<8)&0xFF00);
+            mosfetHeat=(147.5-(0.06*mosfetHeat));
+            // Motor sürücü mosfet heat
 
-            MDCHt=Register[6]+((Register[7]<<8)&0xFF00);
-            MDCHt=(147.5-(0.06*MDCHt));
-            //qDebug()<<"MDC Heat           :"<<MDCHt<<endl;
-
-            wheelSpdCount=Register[8]+((Register[9]<<8)&0xFF00);
-            //qDebug()<<"Wheel Speed Count  :"<<wheelSpdCount<<endl;
-
-            Spd=Register[10];
-            //qDebug()<<"Speed              :"<<Spd<<endl;
-
-            batteryCrnt=Register[11]+((Register[12]<<8)&0xFF00);
-            batteryCrnt=batteryCrnt*0.0049;
-           // qDebug()<<"Battery Current    :"<<batteryCrnt<<endl;
-
-            batteryVltg=Register[13]+((Register[14]<<8)&0xFF00);
-            batteryVltg=batteryVltg*0.0117;
-           // qDebug()<<"Battery Voltage    :"<<batteryVltg<<endl;
-
-            batteryHt=Register[15]+((Register[16]<<8)&0xFF00);
-            batteryHt=batteryHt*0.0147;
-            //qDebug()<<"Battery Heat       :"<<batteryHt<<endl;
-
-            isBreak = Register[17];
-            isDeadSwitch = Register[18];
-            potValue = Register[19];
-
-            isEngineActive = ((int)Register[20]) == 1;
-            isWheelActive = ((int)Register[21]) == 1;
-            isBatteryActive = ((int)Register[22]) == 1;
+            batteryCurrent=Register[8]+((Register[9]<<8)&0xFF00);
+            batteryCurrent=batteryCurrent*0.0049;
 
 
-            //qDebug()<<"isDeadSwitch    :"<<isDeadSwitch<<endl;
-            //qDebug()<<"Distance            :"<<distancee<<endl;
+            batteryVoltage=Register[10];
 
-            if(timerToSecond == 1000/(timeToRefresh)){
+            batteryHeat=Register[12]+((Register[13]<<8)&0xFF00);
+            batteryHeat=batteryHeat*0.0147;
 
-                timerToSecond = 0;
+            isBreak = Register[14];
+            isDeadSwitch = Register[15];
 
-                wheelSpd = wheelSpdCount - wheelSpdCountPrevios;
-                Spd = ((wheelSpd*2*3.14*(wheelR/2)/100000))/(3600);
-                distancee=wheelSpdCount*2*3.14*(wheelR/2)/1000;
-                qDebug()<<"Speed            :"<<Spd<<endl;
+            speedValue = Register[16];
+            // Speed butonları ile sabitlenen hız sabiti
 
-                wheelSpdCountPrevios = wheelSpdCount;
-            }
-
-            //qDebug()<<"Speed            :"<<wheelSpd<<endl;
-
-            totalWatt=(((batteryCrnt*batteryVltg))/(3600*(1000/timeToRefresh)))+previoustotalW;
-            //qDebug()<<"Total Watt          :"<<totalWatt<<endl;
-            previoustotalW=totalWatt;
+            isEngineActive = Register[17];
+            isBatteryActive = Register[18];
+            // Motor ve batarya haberleşme kartı kontrolü
 
 
-            emit haberYollaint(encoderSpd,
-                               MDCHt,
-                               MDCHt,
-                               Spd,
-                               batteryCrnt,
-                               batteryVltg,
-                               batteryHt,
-                               distancee,
+            totalWatt=(((batteryCurrent*batteryVoltage))/(3600*(1000/timeToTimer)))+previousTotalWatt;
+            previousTotalWatt=totalWatt;
+
+            emit haberYollaint(speedEncoder,
+                               mosfetHeat,
+                               motorControllerHeat,
+                               batteryCurrent,
+                               batteryVoltage,
+                               batteryHeat,
+                               distance,
                                totalWatt,
                                isDeadSwitch,
                                isBreak,
-                               potValue,
+                               speedValue,
                                isEngineActive,
-                               isBatteryActive,
-                               isWheelActive);
+                               isBatteryActive);
 
             //Gelen dataların sonuna gps bilgilerini ekleyip, tekrar crc olusturarak UDP uzerinden server'a gonderiyoruz.
 
-            received_Register[23]=latitude;
-            received_Register[24]=longitude;
-            received_Register[25]=gpsSpeed;
-            received_Register[26]=UartCRC(received_Register,26);
+            received_Register[19]=latitude;
+            received_Register[20]=longitude;
+            received_Register[21]=gpsSpeed;
+            received_Register[22]=UartCRC(received_Register,22);
 
             client.sendData(received_Register);
 
 
 
-         }else{
-
-            timerToSecond = 0;
-
-            emit haberYollaint(encoderSpd,
-                               MDCHt,
-                               MDCHt,
-                               Spd,
-                               batteryCrnt,
-                               batteryVltg,
-                               batteryHt,
-                               distancee,
-                               totalWatt,
-                               isDeadSwitch,
-                               isBreak,
-                               potValue,
-                               false,
-                               false,
-                               false);
-
-        }
+         }
 
         received_Register.clear();
 
     }else{
 
-        qDebug()<<serialTelemetry->bytesAvailable();
+        //qDebug()<<serialTelemetry->bytesAvailable();
     }
 }
 
@@ -221,20 +171,13 @@ void Ae2::gpsDataReceived( void ){
 }
 
 
-void Ae2::haberAl(int s)
-{
-
-    qDebug() << "Haber :" << s;
-    //emit haberYollaint(30,50);
-}
-
-void Ae2::TimerTick()
+void Ae2::timerTick()
 {
     if (serialTelemetry->isOpen() && serialTelemetry->isWritable())
     {
         sendData[0]=0x5A;
-        sendData[1]=0x06;
-        sendData[2]=0x06;
+        sendData[1]=0x02;
+        sendData[2]=0x02;
         sendData[3]=UartCRC(sendData,3);
         UartWrite(sendData);
 
@@ -264,6 +207,7 @@ void Ae2::UartWrite(QByteArray uartArray)
 {
     serialTelemetry->write(uartArray);
     serialTelemetry->flush();
-    serialTelemetry->waitForBytesWritten(timeToWaitingRequest);
+    serialTelemetry->waitForBytesWritten(timeToTimer);
+
 }
 

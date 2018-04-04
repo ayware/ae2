@@ -10,45 +10,47 @@ Rectangle {
     property int tenminutes
     property int hours
     property int loga;
-    property double limitBHeat : 20.0;
-    property double limitMHeat : 20.0;
-    property double limitCurrent : 10.0;
+    property double limitBatteryHeat : 50.0;
+    property double limitMosfetHeat : 150.0;
+    property double limitCurrent : 20.0;
 
 
     Connections{
         target:benimHaberciReferansi
         onHaberYollaint:{
-            breakStatus(isBreak);
-            deadSwitchStatus(isDeadSwitch);
-            drive(isDeadSwitch);
-            innerring.speed=wheelSpeed; // ortadaki decimal hız
-            speedoNeedle.value=speedNeedleValue(wheelSpeed); // hız ibresini ayarlıyor
-            wH.text=parseFloat(batteryVoltages*batteryCurrents).toFixed(1);
-            kWNeedle.value=kWNeedleValue(batteryVoltages*batteryCurrents);
-            batteryVoltage.text=parseFloat(batteryVoltages).toFixed(1) + " V";
-            batteryCurrent.text=parseFloat(batteryCurrents).toFixed(1) + " A";
-            if(batteryCurrents > limitCurrent)
-                batteryCurrent.color = "red";
-            else
-                batteryCurrent.color = "gold";
 
-            batteryHeat.text=parseFloat(batteryHeats).toFixed(1) + "ºC";
-            if(batteryHeats > limitBHeat)
-                batteryHeat.color = "red";
-            else
-                batteryHeat.color = "gold";
+            breakStatus(isBreak); // Fren basılı bilgi durumu
+            deadSwitchStatus(isDeadSwitch); // Deadman switch bilgi durumu
+            drive(isDeadSwitch); // Ekran göstergesindeki N ve D
+            innerring.speed=speedEncoder; // ortadaki decimal hız
+            speedoNeedle.value=speedNeedleValue(speedEncoder); // hız ibresini ayarlıyor
+            wattText.text=parseFloat(batteryVoltage*batteryCurrent).toFixed(1);
+            kWNeedle.value=kWNeedleValue(batteryVoltage*batteryCurrent); // Watt ibresi
+            batteryVoltageText.text=parseFloat(batteryVoltage).toFixed(1) + " V";
 
-            mosfetHeat.text=parseFloat(mosfetHeats).toFixed(1) + "ºC";
-            if(mosfetHeats > limitMHeat)
-                mosfetHeat.color = "red";
+            batteryCurrentText.text=parseFloat(batteryCurrent).toFixed(1) + " A";
+            if(batteryCurrent > limitCurrent)
+                batteryCurrentText.color = "red";
             else
-                mosfetHeat.color = "gold";
+                batteryCurrentText.color = "gold";
 
-            innerring.batteryStatus(batteryVoltages);
+            batteryHeatText.text=parseFloat(batteryHeat).toFixed(1) + "ºC";
+            if(batteryHeat > limitBatteryHeat)
+                batteryHeatText.color = "red";
+            else
+                batteryHeatText.color = "gold";
+
+            mosfetHeatText.text=parseFloat(mosfetHeat).toFixed(1) + "ºC";
+            if(mosfetHeat > limitMosfetHeat)
+                mosfetHeatText.color = "red";
+            else
+                mosfetHeatText.color = "gold";
+
+            innerring.batteryStatus(batteryVoltage);
             totalW.text=parseFloat(totalWatt).toFixed(1) + " W";
             totalDistance.text=parseFloat(distance).toFixed(1) + " m";
-            pot.text = parseFloat(potValue).toFixed(1);
-            errStatus(isEngineActive,isBatteryActive,isWheelActive);
+            pot.text = parseFloat(speedValue).toFixed(1);
+            errStatus(isEngineActive,isBatteryActive);
 
         }
     }
@@ -110,7 +112,7 @@ Rectangle {
                       }}
               }
               Text {
-                  id: wH
+                  id: wattText
                   text: "0"
                   font.pixelSize: 30
                   font.bold: true
@@ -121,7 +123,7 @@ Rectangle {
 
               }
               Text {
-                  id: wHtext
+
                   text: "Wh"
                   font.pixelSize: 18
                   font.bold: true
@@ -153,12 +155,7 @@ Rectangle {
                       height: 40
                        source: "pics/err_battery_deactive.png"
                   }
-                  Image {
-                      id: errWheel
-                      width: 40
-                      height: 40
-                      source: "pics/err_wheel_deactive.png"
-                  }
+
 
 
               }
@@ -183,7 +180,7 @@ Rectangle {
                       color: "black"
                   }
                   Text {
-                      id: batteryVoltage
+                      id: batteryVoltageText
                       text: 0 + " Volt"
                       font.pixelSize: 20
                       anchors.horizontalCenter: parent.horizontalCenter
@@ -213,7 +210,7 @@ Rectangle {
                       color: "black"
                   }
                   Text {
-                      id: batteryCurrent
+                      id: batteryCurrentText
                       text: 0 + " Amper"
                       font.pixelSize: 20
                       anchors.horizontalCenter: parent.horizontalCenter
@@ -243,7 +240,7 @@ Rectangle {
                       color: "black"
                   }
                   Text {
-                      id: batteryHeat
+                      id: batteryHeatText
                       text: 0 + "º C"
                       font.pixelSize: 22
                       anchors.horizontalCenter: parent.horizontalCenter
@@ -273,7 +270,7 @@ Rectangle {
                       color: "black"
                       }
                   Text {
-                      id: mosfetHeat
+                      id: mosfetHeatText
                       text: 0 + "º C"
                       font.pixelSize: 22
                       anchors.horizontalCenter: parent.horizontalCenter
@@ -415,7 +412,7 @@ Rectangle {
                      }
                  }
 
-              function errStatus(isEngineActive,isBatteryActive,isWheelActive){
+              function errStatus(isEngineActive,isBatteryActive){
 
                   if(isEngineActive)
                       errEngine.source = "/pics/err_engine_deactive.png"
@@ -428,10 +425,6 @@ Rectangle {
                   else
                       errBattery.source = "/pics/err_battery_active.png"
 
-                  if(isWheelActive)
-                      errWheel.source = "/pics/err_wheel_deactive.png"
-                  else
-                      errWheel.source = "/pics/err_wheel_active.png"
 
 
               }
