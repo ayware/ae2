@@ -5,7 +5,7 @@ Ae2::Ae2()
     serial = new QSerialPort(this);
     connect(serial, SIGNAL(readyRead()), this, SLOT(dataReceived()));
 
-    serial->setPortName("COM1");
+    serial->setPortName("/dev/serial0");
     serial->setBaudRate(QSerialPort::Baud115200);
     serial->setParity(QSerialPort::NoParity);
     serial->setStopBits(QSerialPort::OneStop);
