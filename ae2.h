@@ -12,6 +12,9 @@
 #include <QtDebug>
 #include <QtSerialPort>
 #include <QQmlContext>
+#include <QDataStream>
+
+#include "myudp.h"
 
 #define KNOTS_TO_KMH    0.5399568034557235
 
@@ -24,6 +27,8 @@ class Ae2 : public QObject
         QTimer *timer;
         QSerialPort *serialTelemetry;
         QSerialPort *serialGps;
+
+        MyUDP client;
 
         QByteArray sendData;
         QByteArray received_Register;

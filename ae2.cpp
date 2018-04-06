@@ -8,7 +8,7 @@ Ae2::Ae2()
     connect(serialTelemetry, SIGNAL(readyRead()), this, SLOT(telemetryDataReceived()));
     connect(serialGps, SIGNAL(readyRead()), this, SLOT(gpsDataReceived()));
 
-    serialTelemetry->setPortName("/dev/serial0");
+    serialTelemetry->setPortName("COM1");
     serialTelemetry->setBaudRate(QSerialPort::Baud115200);
     serialTelemetry->setParity(QSerialPort::NoParity);
     serialTelemetry->setStopBits(QSerialPort::OneStop);
@@ -117,7 +117,6 @@ void Ae2::telemetryDataReceived( void ){
                 qDebug()<<"Speed            :"<<Spd<<endl;
 
                 wheelSpdCountPrevios = wheelSpdCount;
-
             }
 
             //qDebug()<<"Speed            :"<<wheelSpd<<endl;
@@ -142,6 +141,15 @@ void Ae2::telemetryDataReceived( void ){
                                isEngineActive,
                                isBatteryActive,
                                isWheelActive);
+
+            //Gelen dataların sonuna gps bilgilerini ekleyip, tekrar crc olusturarak UDP uzerinden server'a gonderiyoruz.
+
+            received_Register[23]=latitude;
+            received_Register[24]=longitude;
+            received_Register[25]=gpsSpeed;
+            received_Register[26]=UartCRC(received_Register,26);
+
+            client.sendData(received_Register);
 
 
 

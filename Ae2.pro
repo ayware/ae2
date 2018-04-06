@@ -4,10 +4,12 @@ QT += qml quick serialport
 CONFIG += c++11 console
 
 SOURCES += main.cpp \
-    ae2.cpp
+    ae2.cpp \
+    myudp.cpp
 
 HEADERS += \
-    ae2.h
+    ae2.h \
+    myudp.h
 
 RESOURCES += qml.qrc
 
