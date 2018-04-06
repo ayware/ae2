@@ -16,7 +16,7 @@ Rectangle {
 
 
     Connections{
-        target:benimHaberciReferansı
+        target:benimHaberciReferansi
         onHaberYollaint:{
             breakStatus(isBreak);
             deadSwitchStatus(isDeadSwitch);

@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
     Ae2 timer;
     QQmlContext* ctx=engine.rootContext();
-    ctx->setContextProperty("benimHaberciReferansı",&timer);
+    ctx->setContextProperty("benimHaberciReferansi",&timer);
     return app.exec();
 
 }
