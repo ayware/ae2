@@ -36,40 +36,25 @@ class Ae2 : public QObject
 
         QByteArray received_GpsData;
 
-        bool speedCommand=false;
-        bool hornCommand=false;
-        bool modCommand=false;
-        bool stopCommand=false;
-        bool isEngineActive = true;
-        bool isBatteryActive = true;
-        bool isWheelActive = true;
 
-        unsigned int breakStats=0;
+        int timeToTimer = 100;
 
+        int isEngineActive = 0;
+        int isBatteryActive = 0;
         int isDeadSwitch = 0;
         int isBreak = 0;
-        int timeToRefresh = 100; // Ms
-        int timeToWaitingRequest = 50; // Ms
-        int timeToTimer = timeToRefresh - timeToWaitingRequest;
-        int timerToSecond = 0;
 
-        float R=0.1; // 10 cm
-        float wheelR = 20.0; //"20 cm"
-        float encoderSpd=0;
-        float encoderSpdCount=0;
-        float mosfetHt=0;
-        float MDCHt=0;        
-        float Spd=0;
-        float wheelSpd=0;
-        float wheelSpdCountPrevios=0;
-        float wheelSpdCount=0;
-        float batteryCrnt=0;
-        float batteryVltg=0;
-        float batteryHt=0;
-        float distancee=0;
-        float totalWatt=0;
-        float previoustotalW=0;
-        float potValue = 0;
+        float mosfetHeat = 0;
+        float motorControllerHeat = 0;
+        float speedEncoder = 0;
+        float speedMotor = 0;
+        float batteryCurrent = 0;
+        float batteryVoltage = 0;
+        float batteryHeat = 0;
+        float distance = 0;
+        float totalWatt = 0;
+        float previousTotalWatt = 0;
+        float speedValue = 0;
 
         float latitude = 0;
         float longitude = 0;
@@ -81,25 +66,22 @@ class Ae2 : public QObject
 
 
       signals:
-        void haberYollaint(float encoderSpeed,
-                           float mosfetHeats,
-                           float MDCHeats,
-                           float wheelSpeed,
-                           float batteryCurrents,
-                           float batteryVoltages,
-                           float batteryHeats,
+        void haberYollaint(float speedEncoder,
+                           float mosfetHeat,
+                           float motorControllerHeat,
+                           float batteryCurrent,
+                           float batteryVoltage,
+                           float batteryHeat,
                            float distance,
                            float totalWatt,
                            int isDeadSwitch,
                            int isBreak,
-                           float potValue,
-                           bool isEngineActive,
-                           bool isBatteryActive,
-                           bool isWheelActive);
+                           float speedValue,
+                           int isEngineActive,
+                           int isBatteryActive);
 
     public slots:
-        void TimerTick();
-        void haberAl(int s);
+        void timerTick();
         void telemetryDataReceived( void );
         void gpsDataReceived( void );
 
