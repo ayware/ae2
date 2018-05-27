@@ -45,6 +45,7 @@ class Ae2 : public QObject
         QTimer *timer;
         QSerialPort *serialTelemetry;
         QSerialPort *serialGps;
+        QSerialPort *serialAT;
 
         MyUDP client;
 
@@ -69,9 +70,9 @@ class Ae2 : public QObject
         float batteryHeat = 0;
         float distance = 0;
         float totalWatt = 0;
-        float curWatt = 0;
         float previousTotalWatt = 0;
         float speedValue = 0;
+        float curWatt = 0;
 
         float latitude = 0;
         float longitude = 0;
@@ -83,6 +84,7 @@ class Ae2 : public QObject
         void updateData(QByteArray data);
 
 
+
       signals:
         void updateScreen(float speedWheel,
                            float mosfetHeat,
@@ -91,6 +93,7 @@ class Ae2 : public QObject
                            float batteryVoltage,
                            float batteryHeat,
                            float distance,
+                           float curWatt,
                            float totalWatt,
                            int isDeadSwitch,
                            int isBreak,

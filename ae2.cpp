@@ -4,15 +4,16 @@ Ae2::Ae2()
 {
     serialTelemetry = new QSerialPort(this);
     serialGps = new QSerialPort(this);
+    serialAT = new QSerialPort(this);
 
     connect(serialTelemetry, SIGNAL(readyRead()), this, SLOT(telemetryDataReceived()));
     connect(serialGps, SIGNAL(readyRead()), this, SLOT(gpsDataReceived()));
 
-    //serialTelemetry->setPortName("/dev/ttyS0");
-    serialTelemetry->setPortName("COM3");
+    serialTelemetry->setPortName("/dev/ttyS0");
     serialTelemetry->setBaudRate(QSerialPort::Baud115200);
     serialTelemetry->setParity(QSerialPort::NoParity);
     serialTelemetry->setStopBits(QSerialPort::OneStop);
+    serialTelemetry->setDataBits(QSerialPort::Data8);
     serialTelemetry->setFlowControl(QSerialPort::NoFlowControl);
 
     serialGps->setPortName("/dev/ttyUSB1");
@@ -21,6 +22,9 @@ Ae2::Ae2()
     serialGps->setStopBits(QSerialPort::OneStop);
     serialGps->setFlowControl(QSerialPort::NoFlowControl);
 
+    serialAT->setPortName("/dev/ttyUSB2");
+    serialAT->setBaudRate(QSerialPort::Baud9600);
+    serialAT->setFlowControl(QSerialPort::NoFlowControl);
 
     if(!serialTelemetry->isOpen()){
        serialTelemetry->open(QSerialPort::ReadWrite);
@@ -28,6 +32,16 @@ Ae2::Ae2()
 
     if(!serialGps->isOpen()){
        serialGps->open(QSerialPort::ReadWrite);
+    }
+
+    uint32_t counter = 0;
+    while(!serialAT->isOpen()){
+
+        serialAT->open(QSerialPort::ReadWrite);
+        counter++;
+        if(counter == 1000)
+            break;
+
     }
 
 
@@ -43,6 +57,14 @@ Ae2::Ae2()
     qDebug()<<"serialGps IsOpenUart      :"<<serialGps->isOpen()<<endl;
     qDebug()<<"serialGps ReadableUart    :"<<serialGps->isReadable()<<endl;
     qDebug()<<"serialGps WritableUart    :"<<serialGps->isWritable()<<endl<<endl;
+
+    qDebug()<<"serialAT IsOpenUart      :"<<serialAT->isOpen()<<endl;
+    qDebug()<<"serialAT ReadableUart    :"<<serialAT->isReadable()<<endl;
+    qDebug()<<"serialAT WritableUart    :"<<serialAT->isWritable()<<endl<<endl;
+
+    // Gps modulünü aktif ediyoruz
+    serialAT->write("AT-QGPS=1\r");
+    serialAT->flush();
 
 }
 
@@ -65,6 +87,7 @@ void clearUart(void){
     dataLength = 0;
 
 }
+
 
 
 void Ae2::updateData(QByteArray data){
@@ -112,6 +135,7 @@ void Ae2::updateData(QByteArray data){
                        batteryVoltage,
                        batteryHeat,
                        distance,
+                       curWatt,
                        totalWatt,
                        isDeadSwitch,
                        isBreak,
@@ -126,7 +150,6 @@ void Ae2::updateData(QByteArray data){
 
 
 void Ae2::telemetryDataReceived( void ){
-
 
     if(!isPassedAck){
 
@@ -166,6 +189,8 @@ void Ae2::telemetryDataReceived( void ){
 
         }else{
 
+      
+
             // Data işlemleri
 
             switch(command){
@@ -179,46 +204,63 @@ void Ae2::telemetryDataReceived( void ){
                     if(serialTelemetry->bytesAvailable() >= dataLength + 1){
 
                         QByteArray rcvData;
-                        rcvData = serialTelemetry->read(dataLength + 1);
-                        frame.append(rcvData);
+                        rcvData = serialTelemetry->read(dataLength);
+                        uint8_t crc = (serialTelemetry->read(1))[0];
 
+
+                        frame.append(rcvData);
                         serialTelemetry->readAll();
 
-                        uint8_t crc = rcvData[dataLength];
+                        //qDebug()<<"Data:\n"<<rcvData;
 
+                        //qDebug()<<"Crc:"<<crc;
 
                         uint32_t crcCalculated = crcCalc(frame,4 + dataLength);
 
-                        //qDebug()<<rcvData;
 
+                        //qDebug()<<"CrcCalc:"<<crcCalculated;
 
-
+                    
                         if(crc == crcCalculated){
 
                             //qDebug()<<"Crc ok!";
 
-
-                            rcvData.remove(dataLength,1);
                             updateData(rcvData);
 
-                            frame.remove(frame.length()-1,1); // crc removed
+                            uint32_t lat = latitude * 1000000;
+                            uint32_t lon = longitude * 1000000;
+                            uint32_t dist = distance * 1000000;
 
-                            frame.append(latitude);
-                            frame.append(longitude);
-                            frame.append(distance);
+                            frame.append( (lat>>24)&0xFF );
+                            frame.append( (lat>>16)&0xFF );
+                            frame.append( (lat>>8)&0xFF );
+                            frame.append( (lat>>0)&0xFF );
 
+
+                            frame.append( (lon>>24)&0xFF );
+                            frame.append( (lon>>16)&0xFF );
+                            frame.append( (lon>>8)&0xFF );
+                            frame.append( (lon>>0)&0xFF );
+
+                            frame.append( (dist>>24)&0xFF );
+                            frame.append( (dist>>16)&0xFF );
+                            frame.append( (dist>>8)&0xFF );
+                            frame.append( (dist>>0)&0xFF );
+
+                            // Gps verileri eklenince dataLengthi değiştirdik
                             QByteArray arr;
-                            arr.append(dataLength + 3);
+                            arr.append(dataLength + 12);
                             frame.replace(3,1,arr);
-
 
                             // New crc appended
                             frame.append(crcCalc(frame,frame.length()));
 
-                            //qDebug()<<"Server:"<<frame;
+                            //qDebug()<<"ServerFrame:\n"<<frame;
+							
 
                             // Datas sent to server
                             client.sendData(frame);
+
 
                         }else{
 
@@ -244,19 +286,17 @@ void Ae2::telemetryDataReceived( void ){
             default:
                 clearUart();
 
-
-
             }
 
-
-
-
         }
-
-
     }
-
 }
+
+
+
+
+
+
 void Ae2::gpsDataReceived( void ){
 
     //qDebug()<<serialGps->bytesAvailable();
@@ -266,11 +306,11 @@ void Ae2::gpsDataReceived( void ){
 
         if( rcvGpsData.startsWith("$GPRMC") ){
 
-            qDebug()<<rcvGpsData;
+            //qDebug()<<rcvGpsData;
 
             QStringList list = QString(rcvGpsData).split(",");
 
-            qDebug()<<list;
+            //qDebug()<<list;
 
             int latDegree = (((QString)list[3]).toDouble())/100;
             float latMin = (((QString)list[3]).toDouble())-latDegree*100;
@@ -329,7 +369,5 @@ void Ae2::uartWrite(QByteArray uartArray)
 {
     serialTelemetry->write(uartArray);
     serialTelemetry->flush();
-
-
 }
 
