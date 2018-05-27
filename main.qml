@@ -11,14 +11,16 @@ ApplicationWindow {
     width: 800
     height: 480
     visible: true
-    id:a
+    id:screen
     color: "black"
+
     MouseArea {
             anchors.fill: parent;
             onClicked: {
 
 
-           //   a.close();
+                // Ekranda her hangi bir yere tıklayınca
+
 
             }
         }
@@ -42,31 +44,7 @@ ApplicationWindow {
            source: "/pics/Background.png"
        }
 
-    /*  Column {
-           id: switch1
-           y: 100
-           x: 700
-           Switch { checked: true }
-           Text {
-               text: "Mod1"
-               font.pixelSize: 26
-               font.bold: true
-               color: "white"
-           }
-       }
-       Column {
-           id: switch2
-           y: 200
-           x: 700
-           Switch { checked: true }
-           Text {
-               text: "Mod2"
-               font.pixelSize: 26
-               font.bold: true
-               color: "white"
-           }
-       }*/
-       //Leiste unten
+
     Rectangle {
     y: parent.height - 90
     height: 200
@@ -96,13 +74,13 @@ ApplicationWindow {
                    x: 100
                    Text {
                        id:temp
-                       text: "69º"
+                       text: ""
                        font.pixelSize: 26
                        font.bold: true
                        color: "white"
                    }
                    Text {
-                       text: "C"
+                       text: ""
                        font.pixelSize: 26
                        font.bold: false
                        color: "darkgray"

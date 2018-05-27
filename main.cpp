@@ -1,4 +1,5 @@
 #include "ae2.h"
+
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
@@ -11,6 +12,8 @@ int main(int argc, char *argv[])
     Ae2 timer;
     QQmlContext* ctx=engine.rootContext();
     ctx->setContextProperty("benimHaberciReferansi",&timer);
+
+
     return app.exec();
 
 }

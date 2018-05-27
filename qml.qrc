@@ -44,5 +44,7 @@
         <file>pics/err_engine_deactive.png</file>
         <file>pics/err_wheel_active.png</file>
         <file>pics/err_wheel_deactive.png</file>
+        <file>pics/engine_run.png</file>
+        <file>pics/engine_run_not.png</file>
     </qresource>
 </RCC>

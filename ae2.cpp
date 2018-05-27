@@ -4,6 +4,7 @@ Ae2::Ae2()
 {
     serialTelemetry = new QSerialPort(this);
     serialGps = new QSerialPort(this);
+    serialAT = new QSerialPort(this);
 
     connect(serialTelemetry, SIGNAL(readyRead()), this, SLOT(telemetryDataReceived()));
     connect(serialGps, SIGNAL(readyRead()), this, SLOT(gpsDataReceived()));
@@ -12,6 +13,7 @@ Ae2::Ae2()
     serialTelemetry->setBaudRate(QSerialPort::Baud115200);
     serialTelemetry->setParity(QSerialPort::NoParity);
     serialTelemetry->setStopBits(QSerialPort::OneStop);
+    serialTelemetry->setDataBits(QSerialPort::Data8);
     serialTelemetry->setFlowControl(QSerialPort::NoFlowControl);
 
     serialGps->setPortName("/dev/ttyUSB1");
@@ -20,6 +22,9 @@ Ae2::Ae2()
     serialGps->setStopBits(QSerialPort::OneStop);
     serialGps->setFlowControl(QSerialPort::NoFlowControl);
 
+    serialAT->setPortName("/dev/ttyUSB2");
+    serialAT->setBaudRate(QSerialPort::Baud9600);
+    serialAT->setFlowControl(QSerialPort::NoFlowControl);
 
     if(!serialTelemetry->isOpen()){
        serialTelemetry->open(QSerialPort::ReadWrite);
@@ -29,10 +34,20 @@ Ae2::Ae2()
        serialGps->open(QSerialPort::ReadWrite);
     }
 
+    uint32_t counter = 0;
+    while(!serialAT->isOpen()){
+
+        serialAT->open(QSerialPort::ReadWrite);
+        counter++;
+        if(counter == 1000)
+            break;
+
+    }
+
 
     timer = new QTimer(this);
     connect(timer,SIGNAL(timeout()),this,SLOT(timerTick()));
-    timer->start(timeToTimer);
+    timer->start(timeToRequestData);
 
 
     qDebug()<<"serialTelemetry IsOpenUart      :"<<serialTelemetry->isOpen()<<endl;
@@ -43,110 +58,259 @@ Ae2::Ae2()
     qDebug()<<"serialGps ReadableUart    :"<<serialGps->isReadable()<<endl;
     qDebug()<<"serialGps WritableUart    :"<<serialGps->isWritable()<<endl<<endl;
 
+    qDebug()<<"serialAT IsOpenUart      :"<<serialAT->isOpen()<<endl;
+    qDebug()<<"serialAT ReadableUart    :"<<serialAT->isReadable()<<endl;
+    qDebug()<<"serialAT WritableUart    :"<<serialAT->isWritable()<<endl<<endl;
+
+    // Gps modulünü aktif ediyoruz
+    serialAT->write("AT-QGPS=1\r");
+    serialAT->flush();
+
 }
+
+bool isPassedAck = false;
+bool isPassedCtr = false;
+
+uint8_t command = 0;
+uint8_t commandType = 0;
+uint8_t dataLength = 0;
+
+
+void clearUart(void){
+
+    // Cleared parameters to get new datas
+
+    isPassedAck = false;
+    isPassedCtr = false;
+    command = 0;
+    commandType = 0;
+    dataLength = 0;
+
+}
+
+
+
+void Ae2::updateData(QByteArray data){
+
+    if(data.length() == 0)
+        return;
+
+    speedMotor = data[0];
+
+    speedWheel = data[1];
+
+    motorControllerHeat =( ((data[2]<<8)&0xFF00) + ((data[3]<<0)&0xFF) ) / 10.0;
+
+    mosfetHeat = ( ((data[4]<<8)&0xFF00) + ((data[5]<<0)&0xFF) ) / 10.0;
+
+    isMotorRun = data[6];
+
+    isEngineActive = data[8];
+
+    batteryCurrent = ( ((data[9]<<8)&0xFF00) + ((data[10]<<0)&0xFF) ) / 10.0;
+
+    batteryVoltage = ( ((data[11]<<8)&0xFF00) + ((data[12]<<0)&0xFF) ) / 10.0;
+
+    batteryHeat = ( ((data[13]<<8)&0xFF00) + ((data[14]<<0)&0xFF) ) / 10.0;
+
+    isBatteryActive = data[17];
+
+    isBreak = data[18];
+
+    isDeadSwitch = data[19];
+
+    speedValue = data[20];
+
+    curWatt = (batteryCurrent * batteryVoltage)*(float)(0.1);
+
+    distance += speedWheel * 60 / 1000;
+
+    totalWatt = curWatt + previousTotalWatt;
+    previousTotalWatt = totalWatt;
+
+    emit updateScreen(speedWheel,
+                       mosfetHeat,
+                       motorControllerHeat,
+                       batteryCurrent,
+                       batteryVoltage,
+                       batteryHeat,
+                       distance,
+                       curWatt,
+                       totalWatt,
+                       isDeadSwitch,
+                       isBreak,
+                       speedValue,
+                       isEngineActive,
+                       isBatteryActive,
+                       isMotorRun);
+
+
+
+}
+
 
 void Ae2::telemetryDataReceived( void ){
 
-    //qDebug()<<serialTelemetry->bytesAvailable();
+    if(!isPassedAck){
 
-    if(serialTelemetry->bytesAvailable()>=20){
+        if(serialTelemetry->bytesAvailable() >= 1 && ACK == (unsigned char)(serialTelemetry->read(1))[0]){
 
-        received_Register = serialTelemetry->read(20);
-        serialTelemetry->readAll(); //Bufferda hatadan dolayı fazladan veri geldiyse silelim bosalsin.
+            frame.clear();
+            frame.append(ACK);
 
-        if( (UartCRC(received_Register,19) == (unsigned char)received_Register[19]) && (0x55 == received_Register[0]) )
-        {
+            isPassedAck = true;
+            //qDebug()<<"ACK ok;";
 
-           //qDebug()<<"Uart Data Received"<<endl;
-
-            Register=received_Register;
-
-            speedMotor=Register[1]+((Register[2]<<8)&0xFF00);
-            // Motora takılı encoder bilgisi
-
-            speedEncoder = Register[3];
-            // Tekerdeki encoder bilgisi
-
-            motorControllerHeat=Register[4]+((Register[5]<<8)&0xFF00);
-            motorControllerHeat=(147.5-(0.06*motorControllerHeat));
-            // Motor haberleşme kartı controller heat
-
-            mosfetHeat=Register[6]+((Register[7]<<8)&0xFF00);
-            mosfetHeat=(147.5-(0.06*mosfetHeat));
-            // Motor sürücü mosfet heat
-
-            batteryCurrent=Register[8]+((Register[9]<<8)&0xFF00);
-            batteryCurrent=batteryCurrent*0.0049;
-
-
-            batteryVoltage=Register[10];
-
-            batteryHeat=Register[12]+((Register[13]<<8)&0xFF00);
-            batteryHeat=batteryHeat*0.0147;
-
-            isBreak = Register[14];
-            isDeadSwitch = Register[15];
-
-            speedValue = Register[16];
-            // Speed butonları ile sabitlenen hız sabiti
-
-            isEngineActive = Register[17];
-            isBatteryActive = Register[18];
-            // Motor ve batarya haberleşme kartı kontrolü
-
-
-            totalWatt=(((batteryCurrent*batteryVoltage))/(3600*(1000/timeToTimer)))+previousTotalWatt;
-            previousTotalWatt=totalWatt;
-
-            emit haberYollaint(speedEncoder,
-                               mosfetHeat,
-                               motorControllerHeat,
-                               batteryCurrent,
-                               batteryVoltage,
-                               batteryHeat,
-                               distance,
-                               totalWatt,
-                               isDeadSwitch,
-                               isBreak,
-                               speedValue,
-                               isEngineActive,
-                               isBatteryActive);
-
-            //Gelen dataların sonuna gps bilgilerini ekleyip, tekrar crc olusturarak UDP uzerinden server'a gonderiyoruz.
-
-            received_Register[19]=latitude;
-            received_Register[20]=longitude;
-            received_Register[21]=gpsSpeed;
-            received_Register[22]=UartCRC(received_Register,22);
-
-            client.sendData(received_Register);
-
-
-
-         }
-
-        received_Register.clear();
+        }
 
     }else{
 
-        //qDebug()<<serialTelemetry->bytesAvailable();
+
+        if(!isPassedCtr){
+
+
+            if(serialTelemetry->bytesAvailable() >= 3){
+
+                QByteArray rcv;
+                rcv = serialTelemetry->read(3);
+
+                command = rcv[0];
+                commandType = rcv[1];
+                dataLength = rcv[2];
+
+                frame.append(rcv);
+
+                //qDebug()<<"Command:"<<command;
+                //qDebug()<<"CommandType:"<<commandType;
+                //qDebug()<<"DataLength:"<<dataLength;
+
+                isPassedCtr = true;
+            }
+
+        }else{
+
+      
+
+            // Data işlemleri
+
+            switch(command){
+
+            case COMMAND_DATA_CHECKER:
+
+                switch (commandType) {
+
+                case COMMAND_TYPE_DATA_RESPONSE:
+
+                    if(serialTelemetry->bytesAvailable() >= dataLength + 1){
+
+                        QByteArray rcvData;
+                        rcvData = serialTelemetry->read(dataLength);
+                        uint8_t crc = (serialTelemetry->read(1))[0];
+
+
+                        frame.append(rcvData);
+                        serialTelemetry->readAll();
+
+                        //qDebug()<<"Data:\n"<<rcvData;
+
+                        //qDebug()<<"Crc:"<<crc;
+
+                        uint32_t crcCalculated = crcCalc(frame,4 + dataLength);
+
+
+                        //qDebug()<<"CrcCalc:"<<crcCalculated;
+
+                    
+                        if(crc == crcCalculated){
+
+                            //qDebug()<<"Crc ok!";
+
+                            updateData(rcvData);
+
+                            uint32_t lat = latitude * 1000000;
+                            uint32_t lon = longitude * 1000000;
+                            uint32_t dist = distance * 1000000;
+
+                            frame.append( (lat>>24)&0xFF );
+                            frame.append( (lat>>16)&0xFF );
+                            frame.append( (lat>>8)&0xFF );
+                            frame.append( (lat>>0)&0xFF );
+
+
+                            frame.append( (lon>>24)&0xFF );
+                            frame.append( (lon>>16)&0xFF );
+                            frame.append( (lon>>8)&0xFF );
+                            frame.append( (lon>>0)&0xFF );
+
+                            frame.append( (dist>>24)&0xFF );
+                            frame.append( (dist>>16)&0xFF );
+                            frame.append( (dist>>8)&0xFF );
+                            frame.append( (dist>>0)&0xFF );
+
+                            // Gps verileri eklenince dataLengthi değiştirdik
+                            QByteArray arr;
+                            arr.append(dataLength + 12);
+                            frame.replace(3,1,arr);
+
+                            // New crc appended
+                            frame.append(crcCalc(frame,frame.length()));
+
+                            //qDebug()<<"ServerFrame:\n"<<frame;
+							
+
+                            // Datas sent to server
+                            client.sendData(frame);
+
+
+                        }else{
+
+                            //qDebug()<<"Crc fail!";
+
+                        }
+
+
+                        clearUart();
+                    }
+
+                    break;
+
+                default:
+                       clearUart();
+
+
+                }
+
+
+                break;
+
+            default:
+                clearUart();
+
+            }
+
+        }
     }
 }
 
+
+
+
+
+
 void Ae2::gpsDataReceived( void ){
 
-    qDebug()<<serialGps->bytesAvailable();
+    //qDebug()<<serialGps->bytesAvailable();
 
     if(serialGps->canReadLine()){
-        received_GpsData = serialGps->readLine();
+        rcvGpsData = serialGps->readLine();
 
-        if( received_GpsData.startsWith("$GPRMC") ){
+        if( rcvGpsData.startsWith("$GPRMC") ){
 
-            qDebug()<<received_GpsData;
+            //qDebug()<<rcvGpsData;
 
-            QStringList list = QString(received_GpsData).split(",");
+            QStringList list = QString(rcvGpsData).split(",");
 
-            qDebug()<<list;
+            //qDebug()<<list;
 
             int latDegree = (((QString)list[3]).toDouble())/100;
             float latMin = (((QString)list[3]).toDouble())-latDegree*100;
@@ -164,7 +328,7 @@ void Ae2::gpsDataReceived( void ){
 
         }else{
 
-            received_GpsData.clear();
+            rcvGpsData.clear();
         }
     }
 
@@ -175,11 +339,12 @@ void Ae2::timerTick()
 {
     if (serialTelemetry->isOpen() && serialTelemetry->isWritable())
     {
-        sendData[0]=0x5A;
-        sendData[1]=0x02;
-        sendData[2]=0x02;
-        sendData[3]=UartCRC(sendData,3);
-        UartWrite(sendData);
+        sendData[0] = ACK;
+        sendData[1] = COMMAND_DATA_CHECKER;
+        sendData[2] = COMMAND_TYPE_DATA_REQUEST;
+        sendData[3] = 0;
+        sendData[4] = (ACK + COMMAND_DATA_CHECKER + COMMAND_TYPE_DATA_REQUEST + 0) % 256;
+        uartWrite(sendData);
 
     }else{
 
@@ -189,25 +354,20 @@ void Ae2::timerTick()
 
 
 
-int Ae2::UartCRC(QByteArray crcArray, int crcLenght)
+int Ae2::crcCalc(QByteArray crcArray, int crcLenght)
 {
     int calc=0,j=0;
 
     for(j=0;j<crcLenght;j++)
-    {
-        calc=calc+crcArray[j];
-    }
+        calc += crcArray[j];
 
-    calc=calc%256;
+    return calc % 256;
 
-    return calc;
 }
 
-void Ae2::UartWrite(QByteArray uartArray)
+void Ae2::uartWrite(QByteArray uartArray)
 {
     serialTelemetry->write(uartArray);
     serialTelemetry->flush();
-    serialTelemetry->waitForBytesWritten(timeToTimer);
-
 }
 
