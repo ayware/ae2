@@ -1,7 +1,6 @@
 import QtQuick 2.4
 import QtGraphicalEffects 1.0
 
-
 Rectangle {
     color: "transparent"
     property int j : 0
@@ -31,8 +30,8 @@ Rectangle {
             drive(isDeadSwitch); // Ekran göstergesindeki N ve D
             innerring.speed=speedWheel; // ortadaki decimal hız
             speedoNeedle.value=speedNeedleValue(speedWheel); // hız ibresini ayarlıyor
-            wattText.text=parseFloat(curWatt).toFixed(1);
-            kWNeedle.value=kWNeedleValue(curWatt); // Watt ibresi
+            wattText.text=parseFloat(batteryVoltage*batteryCurrent).toFixed(1);
+            kWNeedle.value=kWNeedleValue(batteryVoltage*batteryCurrent); // Watt ibresi
             batteryVoltageText.text=parseFloat(batteryVoltage).toFixed(1) + " V";
 
             batteryCurrentText.text=parseFloat(batteryCurrent).toFixed(1) + " A";
@@ -61,6 +60,19 @@ Rectangle {
 
         }
     }
+   /* MouseArea {
+        anchors.fill: parent
+        onClicked: {
+            breakStatus(1)
+            j++
+            innerring.speed=j
+            wH.text= j
+            kWNeedle.value = kWNeedleValue(j)
+            speedoNeedle.value=speedNeedleValue(j)
+
+//benimHaberciReferansı.haberAl("Merhaba Türkiye")
+        }
+    }*/
 
           SpeedNeedle {
               id: speedoNeedle
@@ -118,7 +130,7 @@ Rectangle {
               }
               Text {
 
-                  text: "Watt"
+                  text: "Wh"
                   font.pixelSize: 18
                   font.bold: true
                   font.family: "Eurostile"
@@ -389,9 +401,7 @@ Rectangle {
               Timer {
                   //update Calltime, calculate 60 seconds into 1 minute etc.
                      interval: 1000; running: true; repeat: true
-                     onTriggered: {
-
-                         seconds++;
+                     onTriggered: {seconds++;
 
                      if(seconds == 10){
                          tenseconds += 1
@@ -410,15 +420,9 @@ Rectangle {
                           hours += 1
                           tenminutes = 0
                       }
-                      
+
                      }
-              }
-              
-              KWNeedle {
-                  id: kWNeedle1
-                  x: -6
-                  y: -8
-              }
+                 }
 
               function errStatus(isEngineActive,isBatteryActive){
 
